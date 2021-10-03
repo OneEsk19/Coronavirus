@@ -1,1 +1,0 @@
-https://www.r-graph-gallery.com/choropleth-map-in-r.html
