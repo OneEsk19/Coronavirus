@@ -1,0 +1,147 @@
+---
+title: "CoronaMapping"
+author: "G.Robertson"
+date: "01/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Mapping current coronavirus information from Worldometers
+
+Packages needed
+```{r}
+library(tidyverse)
+library(rvest)
+library(rgdal)
+library(RColorBrewer)
+```
+
+Webscrape the data
+```{r}
+url <- "https://www.worldometers.info/coronavirus/"
+all <-url%>%read_html()%>%html_table()%>%.[[1]]
+```
+
+Tidy it up
+```{r}
+# exclude the continents and world variables
+coronavirus <- all[9:230,-1]
+
+# Remove symbols from formatting of numbers
+coronavirus[]<-lapply(coronavirus, function(x) (gsub("\\,|\\+", "", (x))))
+
+# convert all but the first and last column to numeric
+coronavirus[,c(2:14, 16:21)] <- sapply(coronavirus[c(2:14, 16:21)],as.numeric)
+
+# rename the cols
+colnames(coronavirus) <- c("Country", "TotalCases", "NewCases", "TotalDeaths",       
+                           "NewDeaths", "TotalRecovered", "NewRecovered", "ActiveCases",       
+                           "CriticalCases", "Cases_Per1M", "Deaths_per1M", "TotalTests",         
+                           "Tests_per1M", "Population", "Continent", "1CaseeveryXppl", 
+                           "1DeatheveryXppl",  "1TesteveryXppl",   "NewCases_per1M",
+                           "NewDeaths_per1M", "ActiveCases_per1M")
+```
+
+Load a map file, plot it, and tweak the formatting
+```{r}
+map_object <- readOGR("C:/Users/georg/Documents/R_Maps/TM_WORLD_BORDERS_SIMPL-0.3.shp")
+     
+euro_map <- map_object[map_object@data$REGION==150, ]
+
+
+plot(euro_map, xlim=c(30,50) , ylim=c(35, 75))
+```
+
+Data wrangling
+```{r}
+# subset europe data from main table
+europe <- coronavirus[coronavirus$Continent=="Europe",]
+# = 48 obs
+
+# how many in the map data?
+length(euro_map$NAME)
+# = 51
+
+# what are the discrepancies?
+setdiff(euro_map$NAME, europe$Country)
+# Listed below is what occurs in map data, but not in our corona data
+```
+
+```{r}
+# Seeing how the "missing" countries are named in the corona data
+europe$Country
+```
+# rename some of the variables in line with the map table convention
+```{r}
+europe$Country[europe$Country=="UK"] <- "United Kingdom"
+europe$Country[europe$Country=="Czechia"] <- "Czech Republic"
+europe$Country[europe$Country=="North Macedonia"] <- "The former Yugoslav Republic of Macedonia"
+europe$Country[europe$Country=="Faeroe Islands"] <- "Faroe Islands"
+europe$Country[europe$Country=="Moldova"] <- "Republic of Moldova"
+europe$Country[europe$Country=="Vatican City"] <- "Holy See (Vatican City)"
+```
+
+```{r}
+setdiff(euro_map$NAME, europe$Country)
+# Just going to ignore these islands for now, sorry Islanders!
+```
+
+
+```{r}
+# actually prefer this nomenclature
+euro_map[euro_map$NAME=="Holy See (Vatican City)"] <- "Vatican City"
+```
+
+Merge the data
+```{r}
+euro_obj <- merge(euro_map, europe, by.x="NAME", by.y="Country")
+
+head(euro_obj)
+# success!
+```
+#### New cases per 1M
+
+Plot a histogram of the data to determine an appropriate bin size
+```{r}
+euro_obj@data %>%
+      ggplot(aes(x=as.numeric(NewCases_per1M))) +
+      geom_histogram(bins = 15, fill="darkslategrey", color="white")
+```
+Get a colour palette sorted out
+```{r}
+par(mar=c(2,4,2,2)) # bottom, left, top, right
+display.brewer.all()
+```
+```{r}
+# define a palette
+my_colours <- brewer.pal(7,"Oranges")
+my_colours <- colorRampPalette(my_colours)(15)
+
+# Attribute the appropriate color to each country
+class_of_country <- cut(euro_obj@data$Cases_Per1M, 15)
+my_colours <- my_colours[as.numeric(class_of_country)]
+
+# Plot it
+plot(euro_obj, xlim=c(40,55) , ylim=c(35, 75), col=my_colours,  bg = "#A6CAE0", main=paste("New cases per 1M as of ", Sys.Date()))
+
+
+```
+
+### Deaths per 1M
+
+```{r}
+# define a pallette
+my_colours <- brewer.pal(7,"Oranges")
+my_colours <- colorRampPalette(my_colours)(15)
+
+# assign the colours to the countries
+class_of_country <- cut(euro_obj@data$Deaths_per1M, 15)
+my_colours <- my_colours[class_of_country]
+
+# plot it
+plot(euro_obj, xlim=c(40,55) , ylim=c(35, 75), col=my_colours,  bg = "#A6CAE0", main=paste("Deaths per 1M as of ", Sys.Date()))
+```
+
