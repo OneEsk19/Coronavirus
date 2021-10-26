@@ -1,4 +1,5 @@
-# Using coronavirus data from www.worldometers.info
+# Using coronavirus data from www.worldometers.info  
+Run the scripts to get today's data
 
 |File|Description|Outputs|
 |-----|--------|--------|
